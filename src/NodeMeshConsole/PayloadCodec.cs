@@ -29,7 +29,7 @@ namespace NodeMeshConsole
                 return payloadBytes;
             }
 
-            var compressedBytes = LZ4Codec.Wrap(payloadBytes);
+            var compressedBytes = LZ4Pickler.Pickle(payloadBytes);
             if (compressedBytes.Length >= payloadBytes.Length)
             {
                 isCompressed = false;
@@ -42,7 +42,7 @@ namespace NodeMeshConsole
 
         public static TransportPayload DecodeTransportBytes(byte[] bytes, bool isCompressed)
         {
-            return Decode(isCompressed ? LZ4Codec.Unwrap(bytes) : bytes);
+            return Decode(isCompressed ? LZ4Pickler.Unpickle(bytes) : bytes);
         }
 
         public static TransportPayload FromDouble(double value)
