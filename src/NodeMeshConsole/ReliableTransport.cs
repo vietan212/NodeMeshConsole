@@ -224,7 +224,7 @@ namespace NodeMeshConsole
                             _seenMessages.TryRemove(seenOrder.Dequeue(), out ignored);
                         }
 
-                        var payload = PayloadCodec.Decode(envelope.PayloadBytes);
+                        var payload = PayloadCodec.DecodeTransportBytes(envelope.PayloadBytes, envelope.IsPayloadCompressed);
                         this.MessageReceived?.Invoke(envelope.SenderNode, envelope.Token, payload);
                         message = new NetMQMessage();
                     }

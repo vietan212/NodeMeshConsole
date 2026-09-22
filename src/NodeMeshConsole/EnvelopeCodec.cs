@@ -17,14 +17,19 @@ namespace NodeMeshConsole
 
         public static TransportEnvelope CreateData(string senderNode, string token, TransportPayload payload)
         {
+            bool isPayloadCompressed;
+            var payloadBytes = PayloadCodec.EncodeForTransport(payload, out isPayloadCompressed);
+
             return new TransportEnvelope
             {
                 MessageId = Guid.NewGuid().ToString("N"),
                 SenderNode = senderNode,
                 Token = token,
                 Kind = EnvelopeKind.Data,
-                PayloadBytes = PayloadCodec.Encode(payload),
+                PayloadBytes = payloadBytes,
                 CreatedUtcTicks = DateTime.UtcNow.Ticks
+                ,
+                IsPayloadCompressed = isPayloadCompressed
             };
         }
 

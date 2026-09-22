@@ -177,7 +177,7 @@ namespace NodeMeshConsole
                             continue;
                         }
 
-                        var payload = PayloadCodec.Decode(envelope.PayloadBytes);
+                        var payload = PayloadCodec.DecodeTransportBytes(envelope.PayloadBytes, envelope.IsPayloadCompressed);
                         _latestByToken[token] = new LatestStreamValue
                         {
                             Token = token,

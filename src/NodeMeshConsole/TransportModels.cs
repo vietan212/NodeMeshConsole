@@ -70,6 +70,9 @@ namespace NodeMeshConsole
 
         [Key(6)]
         public string AcknowledgedMessageId { get; set; }
+
+        [Key(7)]
+        public bool IsPayloadCompressed { get; set; }
     }
 
     [MessagePackObject(AllowPrivate = true)]
