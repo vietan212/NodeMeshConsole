@@ -78,14 +78,15 @@ namespace NodeMeshConsole
             var seenOrder = new Queue<string>();
 
             using (var router = new RouterSocket())
-            using (var retryTimer = new NetMQTimer(TimeSpan.FromMilliseconds(400)))
             {
+                var retryTimer = new NetMQTimer(TimeSpan.FromMilliseconds(400));
                 router.Options.RouterMandatory = false;
                 router.Bind("tcp://*:" + this._bindPort);
 
                 this._commandQueue.ReceiveReady += (sender, args) =>
                 {
-                    while (args.Queue.TryDequeue(out var command))
+                    ReliableCommand command;
+                    while (args.Queue.TryDequeue(out command, TimeSpan.Zero))
                     {
                         if (command.Kind == ReliableCommandKind.Stop)
                         {
@@ -131,6 +132,7 @@ namespace NodeMeshConsole
 
                             var dealer = new DealerSocket();
                             dealer.Options.Identity = Encoding.UTF8.GetBytes(this._localNodeId);
+                            var peerNodeId = command.Peer.NodeId;
                             var endpoint = "tcp://" + command.Peer.IpAddress + ":" + command.Peer.ReliablePort;
                             dealer.Connect(endpoint);
                             dealer.ReceiveReady += (dealerSender, dealerArgs) =>
@@ -143,12 +145,12 @@ namespace NodeMeshConsole
                                         continue;
                                     }
 
-                                    pending.Remove(BuildPendingKey(command.Peer.NodeId, ack.AcknowledgedMessageId));
-                                    this._log(string.Format("[reliable] ACK {0} from {1}", ack.AcknowledgedMessageId, command.Peer.NodeId));
+                                    pending.Remove(BuildPendingKey(peerNodeId, ack.AcknowledgedMessageId));
+                                    this._log(string.Format("[reliable] ACK {0} from {1}", ack.AcknowledgedMessageId, peerNodeId));
                                 }
                             };
 
-                            dealers[command.Peer.NodeId] = dealer;
+                            dealers[peerNodeId] = dealer;
                             this._poller.Add(dealer);
                             this._log(string.Format("[reliable] connected DEALER to {0}", endpoint));
                         }
@@ -176,10 +178,12 @@ namespace NodeMeshConsole
 
                 router.ReceiveReady += (sender, args) =>
                 {
-                    while (args.Socket.TryReceiveMultipartMessage(TimeSpan.Zero, out var message))
+                    var message = new NetMQMessage();
+                    while (args.Socket.TryReceiveMultipartMessage(ref message, 0))
                     {
                         if (message.FrameCount < 2)
                         {
+                            message = new NetMQMessage();
                             continue;
                         }
 
@@ -208,6 +212,7 @@ namespace NodeMeshConsole
 
                         var payload = PayloadCodec.Decode(envelope.PayloadBytes);
                         this.MessageReceived?.Invoke(envelope.SenderNode, envelope.Token, payload);
+                        message = new NetMQMessage();
                     }
                 };
 

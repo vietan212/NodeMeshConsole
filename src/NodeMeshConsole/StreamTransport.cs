@@ -83,8 +83,8 @@ namespace NodeMeshConsole
 
             using (var publisher = new PublisherSocket())
             using (var subscriber = new SubscriberSocket())
-            using (var flushTimer = new NetMQTimer(TimeSpan.FromMilliseconds(100)))
             {
+                var flushTimer = new NetMQTimer(TimeSpan.FromMilliseconds(100));
                 publisher.Options.SendHighWatermark = 1000;
                 publisher.Bind("tcp://*:" + this._bindPort);
 
@@ -93,7 +93,8 @@ namespace NodeMeshConsole
 
                 this._commandQueue.ReceiveReady += (sender, args) =>
                 {
-                    while (args.Queue.TryDequeue(out var command))
+                    StreamCommand command;
+                    while (args.Queue.TryDequeue(out command, TimeSpan.Zero))
                     {
                         if (command.Kind == StreamCommandKind.Stop)
                         {
@@ -149,10 +150,12 @@ namespace NodeMeshConsole
 
                 subscriber.ReceiveReady += (sender, args) =>
                 {
-                    while (args.Socket.TryReceiveMultipartMessage(TimeSpan.Zero, out var message))
+                    var message = new NetMQMessage();
+                    while (args.Socket.TryReceiveMultipartMessage(ref message, 0))
                     {
                         if (message.FrameCount < 2)
                         {
+                            message = new NetMQMessage();
                             continue;
                         }
 
@@ -173,6 +176,7 @@ namespace NodeMeshConsole
                         };
 
                         this.MessageReceived?.Invoke(envelope.SenderNode, token, payload);
+                        message = new NetMQMessage();
                     }
                 };
 

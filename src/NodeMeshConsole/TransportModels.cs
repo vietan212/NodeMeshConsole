@@ -18,7 +18,7 @@ namespace NodeMeshConsole
         Ack = 2
     }
 
-    [MessagePackObject]
+    [MessagePackObject(AllowPrivate = true)]
     internal sealed class KeyValuePairValue
     {
         [Key(0)]
@@ -28,7 +28,7 @@ namespace NodeMeshConsole
         public double Value { get; set; }
     }
 
-    [MessagePackObject]
+    [MessagePackObject(AllowPrivate = true)]
     internal sealed class TransportPayload
     {
         [Key(0)]
@@ -47,7 +47,7 @@ namespace NodeMeshConsole
         public KeyValuePairValue[] KeyValueSetValue { get; set; }
     }
 
-    [MessagePackObject]
+    [MessagePackObject(AllowPrivate = true)]
     internal sealed class TransportEnvelope
     {
         [Key(0)]
@@ -72,7 +72,7 @@ namespace NodeMeshConsole
         public string AcknowledgedMessageId { get; set; }
     }
 
-    [MessagePackObject]
+    [MessagePackObject(AllowPrivate = true)]
     internal sealed class BeaconTransportMessage
     {
         [Key(0)]
