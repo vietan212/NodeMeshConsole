@@ -20,21 +20,21 @@ namespace NodeMeshConsole
         public NodeTransport(NodeIdentity nodeIdentity, Action<string> log)
         {
             this.NodeIdentity = nodeIdentity;
-            this._log = log;
+            _log = log;
             this.LocalAddress = NetworkAddressProvider.GetActiveIPv4Address();
             this.StreamPort = StreamPortBase + (int)nodeIdentity;
             this.ReliablePort = ReliablePortBase + (int)nodeIdentity;
-            this._peers = new ConcurrentDictionary<string, PeerNode>(StringComparer.OrdinalIgnoreCase);
+            _peers = new ConcurrentDictionary<string, PeerNode>(StringComparer.OrdinalIgnoreCase);
 
-            this._streamTransport = new StreamTransport(nodeIdentity.ToString(), this.StreamPort, this._log);
-            this._streamTransport.MessageReceived += (sender, token, payload) =>
-                this._log(string.Format("[stream] {0}::{1} <= {2}", sender, token, PayloadCodec.Describe(payload)));
+            _streamTransport = new StreamTransport(nodeIdentity.ToString(), this.StreamPort, _log);
+            _streamTransport.MessageReceived += (sender, token, payload) =>
+                _log(string.Format("[stream] {0}::{1} <= {2}", sender, token, PayloadCodec.Describe(payload)));
 
-            this._reliableTransport = new ReliableTransport(nodeIdentity.ToString(), this.ReliablePort, this._log);
-            this._reliableTransport.MessageReceived += (sender, token, payload) =>
-                this._log(string.Format("[reliable] {0}::{1} <= {2}", sender, token, PayloadCodec.Describe(payload)));
+            _reliableTransport = new ReliableTransport(nodeIdentity.ToString(), this.ReliablePort, _log);
+            _reliableTransport.MessageReceived += (sender, token, payload) =>
+                _log(string.Format("[reliable] {0}::{1} <= {2}", sender, token, PayloadCodec.Describe(payload)));
 
-            this._beaconTransport = new BeaconTransport(
+            _beaconTransport = new BeaconTransport(
                 nodeIdentity.ToString(),
                 this.LocalAddress.ToString(),
                 BeaconPort,
@@ -42,10 +42,10 @@ namespace NodeMeshConsole
                 this.ReliablePort,
                 TimeSpan.FromSeconds(1),
                 TimeSpan.FromSeconds(4),
-                this._log);
+                _log);
 
-            this._beaconTransport.PeerUpserted += this.OnPeerUpserted;
-            this._beaconTransport.PeerExpired += this.OnPeerExpired;
+            _beaconTransport.PeerUpserted += OnPeerUpserted;
+            _beaconTransport.PeerExpired += OnPeerExpired;
         }
 
         public NodeIdentity NodeIdentity { get; private set; }
@@ -58,21 +58,21 @@ namespace NodeMeshConsole
 
         public IReadOnlyCollection<PeerNode> Peers
         {
-            get { return this._peers.Values.OrderBy(peer => peer.NodeId, StringComparer.OrdinalIgnoreCase).ToArray(); }
+            get { return _peers.Values.OrderBy(peer => peer.NodeId, StringComparer.OrdinalIgnoreCase).ToArray(); }
         }
 
         public IReadOnlyCollection<LatestStreamValue> LatestStreamValues
         {
-            get { return this._streamTransport.LatestValues; }
+            get { return _streamTransport.LatestValues; }
         }
 
         public void Start()
         {
-            this._streamTransport.Start();
-            this._reliableTransport.Start();
-            this._beaconTransport.Start();
+            _streamTransport.Start();
+            _reliableTransport.Start();
+            _beaconTransport.Start();
 
-            this._log(string.Format(
+            _log(string.Format(
                 "Node {0} online at {1} (beacon {2}, PUB {3}, ROUTER {4})",
                 this.NodeIdentity,
                 this.LocalAddress,
@@ -83,28 +83,28 @@ namespace NodeMeshConsole
 
         public void PublishStream(string token, TransportPayload payload)
         {
-            this._streamTransport.Publish(token, payload);
-            this._log(string.Format("[stream] local::{0} => {1}", token, PayloadCodec.Describe(payload)));
+            _streamTransport.Publish(token, payload);
+            _log(string.Format("[stream] local::{0} => {1}", token, PayloadCodec.Describe(payload)));
         }
 
         public void BroadcastReliable(string token, TransportPayload payload)
         {
-            this._reliableTransport.Broadcast(token, payload);
-            this._log(string.Format("[reliable] local::{0} => {1}", token, PayloadCodec.Describe(payload)));
+            _reliableTransport.Broadcast(token, payload);
+            _log(string.Format("[reliable] local::{0} => {1}", token, PayloadCodec.Describe(payload)));
         }
 
         public void Dispose()
         {
-            this._beaconTransport.Dispose();
-            this._streamTransport.Dispose();
-            this._reliableTransport.Dispose();
+            _beaconTransport.Dispose();
+            _streamTransport.Dispose();
+            _reliableTransport.Dispose();
         }
 
         private void OnPeerUpserted(PeerNode peer)
         {
             PeerNode previousPeer;
-            this._peers.TryGetValue(peer.NodeId, out previousPeer);
-            var current = this._peers.AddOrUpdate(peer.NodeId, peer, (_, __) => peer);
+            _peers.TryGetValue(peer.NodeId, out previousPeer);
+            var current = _peers.AddOrUpdate(peer.NodeId, peer, (_, __) => peer);
             var endpointChanged = previousPeer == null ||
                 !string.Equals(previousPeer.IpAddress, current.IpAddress, StringComparison.OrdinalIgnoreCase) ||
                 previousPeer.StreamPort != current.StreamPort ||
@@ -112,27 +112,27 @@ namespace NodeMeshConsole
 
             if (previousPeer != null && endpointChanged)
             {
-                this._streamTransport.DisconnectPeer(previousPeer);
-                this._reliableTransport.DisconnectPeer(previousPeer);
+                _streamTransport.DisconnectPeer(previousPeer);
+                _reliableTransport.DisconnectPeer(previousPeer);
             }
 
             if (endpointChanged)
             {
-                this._streamTransport.ConnectPeer(current);
-                this._reliableTransport.ConnectPeer(current);
+                _streamTransport.ConnectPeer(current);
+                _reliableTransport.ConnectPeer(current);
             }
 
-            this._log(string.Format("[beacon] peer active: {0}", current));
+            _log(string.Format("[beacon] peer active: {0}", current));
         }
 
         private void OnPeerExpired(PeerNode peer)
         {
             PeerNode removed;
-            if (this._peers.TryRemove(peer.NodeId, out removed))
+            if (_peers.TryRemove(peer.NodeId, out removed))
             {
-                this._streamTransport.DisconnectPeer(removed);
-                this._reliableTransport.DisconnectPeer(removed);
-                this._log(string.Format("[beacon] peer removed: {0}", removed.NodeId));
+                _streamTransport.DisconnectPeer(removed);
+                _reliableTransport.DisconnectPeer(removed);
+                _log(string.Format("[beacon] peer removed: {0}", removed.NodeId));
             }
         }
     }

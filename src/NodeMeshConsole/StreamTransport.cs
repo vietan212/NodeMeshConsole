@@ -22,58 +22,58 @@ namespace NodeMeshConsole
 
         public StreamTransport(string localNodeId, int bindPort, Action<string> log)
         {
-            this._localNodeId = localNodeId;
-            this._bindPort = bindPort;
-            this._log = log;
-            this._commandQueue = new NetMQQueue<StreamCommand>();
-            this._latestByToken = new ConcurrentDictionary<string, LatestStreamValue>(StringComparer.OrdinalIgnoreCase);
-            this._started = new ManualResetEventSlim(false);
+            _localNodeId = localNodeId;
+            _bindPort = bindPort;
+            _log = log;
+            _commandQueue = new NetMQQueue<StreamCommand>();
+            _latestByToken = new ConcurrentDictionary<string, LatestStreamValue>(StringComparer.OrdinalIgnoreCase);
+            _started = new ManualResetEventSlim(false);
         }
 
         public event Action<string, string, TransportPayload> MessageReceived;
 
         public IReadOnlyCollection<LatestStreamValue> LatestValues
         {
-            get { return this._latestByToken.Values.OrderBy(value => value.Token, StringComparer.OrdinalIgnoreCase).ToArray(); }
+            get { return _latestByToken.Values.OrderBy(value => value.Token, StringComparer.OrdinalIgnoreCase).ToArray(); }
         }
 
         public void Start()
         {
-            this._workerThread = new Thread(this.RunWorker)
+            _workerThread = new Thread(RunWorker)
             {
                 IsBackground = true,
                 Name = "StreamTransport"
             };
-            this._workerThread.Start();
-            this._started.Wait(TimeSpan.FromSeconds(5));
+            _workerThread.Start();
+            _started.Wait(TimeSpan.FromSeconds(5));
         }
 
         public void Publish(string token, TransportPayload payload)
         {
-            this._commandQueue.Enqueue(StreamCommand.CreatePublish(token, payload));
+            _commandQueue.Enqueue(StreamCommand.CreatePublish(token, payload));
         }
 
         public void ConnectPeer(PeerNode peer)
         {
-            this._commandQueue.Enqueue(StreamCommand.CreateConnect(peer));
+            _commandQueue.Enqueue(StreamCommand.CreateConnect(peer));
         }
 
         public void DisconnectPeer(PeerNode peer)
         {
-            this._commandQueue.Enqueue(StreamCommand.CreateDisconnect(peer));
+            _commandQueue.Enqueue(StreamCommand.CreateDisconnect(peer));
         }
 
         public void Dispose()
         {
-            this._commandQueue.Enqueue(StreamCommand.Stop());
+            _commandQueue.Enqueue(StreamCommand.Stop());
 
-            if (this._workerThread != null && this._workerThread.IsAlive)
+            if (_workerThread != null && _workerThread.IsAlive)
             {
-                this._workerThread.Join(TimeSpan.FromSeconds(2));
+                _workerThread.Join(TimeSpan.FromSeconds(2));
             }
 
-            this._commandQueue.Dispose();
-            this._started.Dispose();
+            _commandQueue.Dispose();
+            _started.Dispose();
         }
 
         private void RunWorker()
@@ -86,25 +86,25 @@ namespace NodeMeshConsole
             {
                 var flushTimer = new NetMQTimer(TimeSpan.FromMilliseconds(100));
                 publisher.Options.SendHighWatermark = 1000;
-                publisher.Bind("tcp://*:" + this._bindPort);
+                publisher.Bind("tcp://*:" + _bindPort);
 
                 subscriber.Options.ReceiveHighWatermark = 1000;
                 subscriber.SubscribeToAnyTopic();
 
-                this._commandQueue.ReceiveReady += (sender, args) =>
+                _commandQueue.ReceiveReady += (sender, args) =>
                 {
                     StreamCommand command;
                     while (args.Queue.TryDequeue(out command, TimeSpan.Zero))
                     {
                         if (command.Kind == StreamCommandKind.Stop)
                         {
-                            this._poller.Stop();
+                            _poller.Stop();
                             return;
                         }
 
                         if (command.Kind == StreamCommandKind.Publish)
                         {
-                            pendingByToken[command.Token] = EnvelopeCodec.CreateData(this._localNodeId, command.Token, command.Payload);
+                            pendingByToken[command.Token] = EnvelopeCodec.CreateData(_localNodeId, command.Token, command.Payload);
                             continue;
                         }
 
@@ -129,7 +129,7 @@ namespace NodeMeshConsole
 
                             subscriber.Connect(endpoint);
                             connectedEndpointsByPeer[command.Peer.NodeId] = endpoint;
-                            this._log(string.Format("[stream] connected SUB to {0}", endpoint));
+                            _log(string.Format("[stream] connected SUB to {0}", endpoint));
                         }
                         else if (command.Kind == StreamCommandKind.Disconnect)
                         {
@@ -138,7 +138,7 @@ namespace NodeMeshConsole
                             {
                                 subscriber.Disconnect(currentEndpoint);
                                 connectedEndpointsByPeer.Remove(command.Peer.NodeId);
-                                this._log(string.Format("[stream] disconnected SUB from {0}", currentEndpoint));
+                                _log(string.Format("[stream] disconnected SUB from {0}", currentEndpoint));
                             }
                         }
                     }
@@ -178,7 +178,7 @@ namespace NodeMeshConsole
                         }
 
                         var payload = PayloadCodec.Decode(envelope.PayloadBytes);
-                        this._latestByToken[token] = new LatestStreamValue
+                        _latestByToken[token] = new LatestStreamValue
                         {
                             Token = token,
                             SenderNode = envelope.SenderNode,
@@ -191,9 +191,9 @@ namespace NodeMeshConsole
                     }
                 };
 
-                this._poller = new NetMQPoller { this._commandQueue, subscriber, flushTimer };
-                this._started.Set();
-                this._poller.Run();
+                _poller = new NetMQPoller { _commandQueue, subscriber, flushTimer };
+                _started.Set();
+                _poller.Run();
             }
         }
 

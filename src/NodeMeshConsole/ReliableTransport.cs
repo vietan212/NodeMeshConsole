@@ -22,53 +22,53 @@ namespace NodeMeshConsole
 
         public ReliableTransport(string localNodeId, int bindPort, Action<string> log)
         {
-            this._localNodeId = localNodeId;
-            this._bindPort = bindPort;
-            this._log = log;
-            this._commandQueue = new NetMQQueue<ReliableCommand>();
-            this._started = new ManualResetEventSlim(false);
-            this._seenMessages = new ConcurrentDictionary<string, byte>(StringComparer.OrdinalIgnoreCase);
+            _localNodeId = localNodeId;
+            _bindPort = bindPort;
+            _log = log;
+            _commandQueue = new NetMQQueue<ReliableCommand>();
+            _started = new ManualResetEventSlim(false);
+            _seenMessages = new ConcurrentDictionary<string, byte>(StringComparer.OrdinalIgnoreCase);
         }
 
         public event Action<string, string, TransportPayload> MessageReceived;
 
         public void Start()
         {
-            this._workerThread = new Thread(this.RunWorker)
+            _workerThread = new Thread(RunWorker)
             {
                 IsBackground = true,
                 Name = "ReliableTransport"
             };
-            this._workerThread.Start();
-            this._started.Wait(TimeSpan.FromSeconds(5));
+            _workerThread.Start();
+            _started.Wait(TimeSpan.FromSeconds(5));
         }
 
         public void Broadcast(string token, TransportPayload payload)
         {
-            this._commandQueue.Enqueue(ReliableCommand.CreateBroadcast(token, payload));
+            _commandQueue.Enqueue(ReliableCommand.CreateBroadcast(token, payload));
         }
 
         public void ConnectPeer(PeerNode peer)
         {
-            this._commandQueue.Enqueue(ReliableCommand.CreateConnect(peer));
+            _commandQueue.Enqueue(ReliableCommand.CreateConnect(peer));
         }
 
         public void DisconnectPeer(PeerNode peer)
         {
-            this._commandQueue.Enqueue(ReliableCommand.CreateDisconnect(peer));
+            _commandQueue.Enqueue(ReliableCommand.CreateDisconnect(peer));
         }
 
         public void Dispose()
         {
-            this._commandQueue.Enqueue(ReliableCommand.Stop());
+            _commandQueue.Enqueue(ReliableCommand.Stop());
 
-            if (this._workerThread != null && this._workerThread.IsAlive)
+            if (_workerThread != null && _workerThread.IsAlive)
             {
-                this._workerThread.Join(TimeSpan.FromSeconds(2));
+                _workerThread.Join(TimeSpan.FromSeconds(2));
             }
 
-            this._commandQueue.Dispose();
-            this._started.Dispose();
+            _commandQueue.Dispose();
+            _started.Dispose();
         }
 
         private void RunWorker()
@@ -81,9 +81,9 @@ namespace NodeMeshConsole
             {
                 var retryTimer = new NetMQTimer(TimeSpan.FromMilliseconds(400));
                 router.Options.RouterMandatory = false;
-                router.Bind("tcp://*:" + this._bindPort);
+                router.Bind("tcp://*:" + _bindPort);
 
-                this._commandQueue.ReceiveReady += (sender, args) =>
+                _commandQueue.ReceiveReady += (sender, args) =>
                 {
                     ReliableCommand command;
                     while (args.Queue.TryDequeue(out command, TimeSpan.Zero))
@@ -96,7 +96,7 @@ namespace NodeMeshConsole
                             }
 
                             dealers.Clear();
-                            this._poller.Stop();
+                            _poller.Stop();
                             return;
                         }
 
@@ -104,11 +104,11 @@ namespace NodeMeshConsole
                         {
                             if (dealers.Count == 0)
                             {
-                                this._log("[reliable] no peers available for broadcast.");
+                                _log("[reliable] no peers available for broadcast.");
                                 continue;
                             }
 
-                            var envelope = EnvelopeCodec.CreateData(this._localNodeId, command.Token, command.Payload);
+                            var envelope = EnvelopeCodec.CreateData(_localNodeId, command.Token, command.Payload);
                             var bytes = EnvelopeCodec.Encode(envelope);
                             foreach (var dealerPair in dealers)
                             {
@@ -131,7 +131,7 @@ namespace NodeMeshConsole
                             }
 
                             var dealer = new DealerSocket();
-                            dealer.Options.Identity = Encoding.UTF8.GetBytes(this._localNodeId + ":" + command.Peer.NodeId + ":" + Guid.NewGuid().ToString("N"));
+                            dealer.Options.Identity = Encoding.UTF8.GetBytes(_localNodeId + ":" + command.Peer.NodeId + ":" + Guid.NewGuid().ToString("N"));
                             var peerNodeId = command.Peer.NodeId;
                             var endpoint = "tcp://" + command.Peer.IpAddress + ":" + command.Peer.ReliablePort;
                             dealer.Connect(endpoint);
@@ -151,13 +151,13 @@ namespace NodeMeshConsole
                                     }
 
                                     pending.Remove(BuildPendingKey(peerNodeId, ack.AcknowledgedMessageId));
-                                    this._log(string.Format("[reliable] ACK {0} from {1}", ack.AcknowledgedMessageId, peerNodeId));
+                                    _log(string.Format("[reliable] ACK {0} from {1}", ack.AcknowledgedMessageId, peerNodeId));
                                 }
                             };
 
                             dealers[peerNodeId] = dealer;
-                            this._poller.Add(dealer);
-                            this._log(string.Format("[reliable] connected DEALER to {0}", endpoint));
+                            _poller.Add(dealer);
+                            _log(string.Format("[reliable] connected DEALER to {0}", endpoint));
                         }
                         else if (command.Kind == ReliableCommandKind.Disconnect)
                         {
@@ -168,7 +168,7 @@ namespace NodeMeshConsole
                             }
 
                             dealers.Remove(command.Peer.NodeId);
-                            this._poller.Remove(dealer);
+                            _poller.Remove(dealer);
                             dealer.Dispose();
 
                             foreach (var key in pending.Keys.Where(key => key.StartsWith(command.Peer.NodeId + "::", StringComparison.OrdinalIgnoreCase)).ToList())
@@ -176,7 +176,7 @@ namespace NodeMeshConsole
                                 pending.Remove(key);
                             }
 
-                            this._log(string.Format("[reliable] disconnected DEALER from {0}", command.Peer.NodeId));
+                            _log(string.Format("[reliable] disconnected DEALER from {0}", command.Peer.NodeId));
                         }
                     }
                 };
@@ -208,10 +208,10 @@ namespace NodeMeshConsole
                             reply.Append(message[index].ToByteArray());
                         }
 
-                        reply.Append(EnvelopeCodec.Encode(EnvelopeCodec.CreateAck(this._localNodeId, envelope.MessageId)));
+                        reply.Append(EnvelopeCodec.Encode(EnvelopeCodec.CreateAck(_localNodeId, envelope.MessageId)));
                         args.Socket.SendMultipartMessage(reply);
 
-                        if (!this._seenMessages.TryAdd(envelope.MessageId, 0))
+                        if (!_seenMessages.TryAdd(envelope.MessageId, 0))
                         {
                             message = new NetMQMessage();
                             continue;
@@ -221,7 +221,7 @@ namespace NodeMeshConsole
                         if (seenOrder.Count > 4096)
                         {
                             byte ignored;
-                            this._seenMessages.TryRemove(seenOrder.Dequeue(), out ignored);
+                            _seenMessages.TryRemove(seenOrder.Dequeue(), out ignored);
                         }
 
                         var payload = PayloadCodec.Decode(envelope.PayloadBytes);
@@ -243,7 +243,7 @@ namespace NodeMeshConsole
                         if (pair.Value.AttemptCount >= 5)
                         {
                             pending.Remove(pair.Key);
-                            this._log(string.Format("[reliable] giving up on {0} to {1}", pair.Value.Envelope.MessageId, pair.Value.PeerNodeId));
+                            _log(string.Format("[reliable] giving up on {0} to {1}", pair.Value.Envelope.MessageId, pair.Value.PeerNodeId));
                             continue;
                         }
 
@@ -257,13 +257,13 @@ namespace NodeMeshConsole
                         dealer.SendFrame(pair.Value.EncodedEnvelope);
                         pair.Value.AttemptCount++;
                         pair.Value.NextAttemptUtc = now.AddMilliseconds(800);
-                        this._log(string.Format("[reliable] retry {0} to {1} (attempt {2})", pair.Value.Envelope.MessageId, pair.Value.PeerNodeId, pair.Value.AttemptCount));
+                        _log(string.Format("[reliable] retry {0} to {1} (attempt {2})", pair.Value.Envelope.MessageId, pair.Value.PeerNodeId, pair.Value.AttemptCount));
                     }
                 };
 
-                this._poller = new NetMQPoller { this._commandQueue, router, retryTimer };
-                this._started.Set();
-                this._poller.Run();
+                _poller = new NetMQPoller { _commandQueue, router, retryTimer };
+                _started.Set();
+                _poller.Run();
             }
         }
 

@@ -34,12 +34,12 @@ namespace NodeMeshConsole
             TimeSpan peerTimeout,
             Action<string> log)
         {
-            this._port = port;
-            this._broadcastInterval = broadcastInterval;
-            this._peerTimeout = peerTimeout;
-            this._log = log;
-            this._peers = new ConcurrentDictionary<string, PeerNode>(StringComparer.OrdinalIgnoreCase);
-            this._localBeacon = new BeaconTransportMessage
+            _port = port;
+            _broadcastInterval = broadcastInterval;
+            _peerTimeout = peerTimeout;
+            _log = log;
+            _peers = new ConcurrentDictionary<string, PeerNode>(StringComparer.OrdinalIgnoreCase);
+            _localBeacon = new BeaconTransportMessage
             {
                 NodeId = nodeId,
                 IpAddress = ipAddress,
@@ -54,46 +54,46 @@ namespace NodeMeshConsole
 
         public void Start()
         {
-            this._cancellationTokenSource = new CancellationTokenSource();
-            this._broadcastClient = new UdpClient(AddressFamily.InterNetwork);
-            this._broadcastClient.EnableBroadcast = true;
+            _cancellationTokenSource = new CancellationTokenSource();
+            _broadcastClient = new UdpClient(AddressFamily.InterNetwork);
+            _broadcastClient.EnableBroadcast = true;
 
-            this._receiveClient = new UdpClient(AddressFamily.InterNetwork);
-            this._receiveClient.EnableBroadcast = true;
-            this._receiveClient.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
-            this._receiveClient.Client.Bind(new IPEndPoint(IPAddress.Any, this._port));
+            _receiveClient = new UdpClient(AddressFamily.InterNetwork);
+            _receiveClient.EnableBroadcast = true;
+            _receiveClient.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+            _receiveClient.Client.Bind(new IPEndPoint(IPAddress.Any, _port));
 
-            this._broadcastTask = Task.Run(() => this.BroadcastLoopAsync(this._cancellationTokenSource.Token));
-            this._receiveTask = Task.Run(() => this.ReceiveLoopAsync(this._cancellationTokenSource.Token));
-            this._pruneTask = Task.Run(() => this.PruneLoopAsync(this._cancellationTokenSource.Token));
+            _broadcastTask = Task.Run(() => BroadcastLoopAsync(_cancellationTokenSource.Token));
+            _receiveTask = Task.Run(() => ReceiveLoopAsync(_cancellationTokenSource.Token));
+            _pruneTask = Task.Run(() => PruneLoopAsync(_cancellationTokenSource.Token));
         }
 
         public void Dispose()
         {
-            if (this._cancellationTokenSource == null)
+            if (_cancellationTokenSource == null)
             {
                 return;
             }
 
-            this._cancellationTokenSource.Cancel();
+            _cancellationTokenSource.Cancel();
 
-            if (this._broadcastClient != null)
+            if (_broadcastClient != null)
             {
-                this._broadcastClient.Close();
-                this._broadcastClient.Dispose();
-                this._broadcastClient = null;
+                _broadcastClient.Close();
+                _broadcastClient.Dispose();
+                _broadcastClient = null;
             }
 
-            if (this._receiveClient != null)
+            if (_receiveClient != null)
             {
-                this._receiveClient.Close();
-                this._receiveClient.Dispose();
-                this._receiveClient = null;
+                _receiveClient.Close();
+                _receiveClient.Dispose();
+                _receiveClient = null;
             }
 
             try
             {
-                Task.WaitAll(new[] { this._broadcastTask, this._receiveTask, this._pruneTask }.Where(task => task != null).ToArray(), TimeSpan.FromSeconds(2));
+                Task.WaitAll(new[] { _broadcastTask, _receiveTask, _pruneTask }.Where(task => task != null).ToArray(), TimeSpan.FromSeconds(2));
             }
             catch (AggregateException)
             {
@@ -102,22 +102,22 @@ namespace NodeMeshConsole
             {
             }
 
-            this._cancellationTokenSource.Dispose();
-            this._cancellationTokenSource = null;
+            _cancellationTokenSource.Dispose();
+            _cancellationTokenSource = null;
         }
 
         private async Task BroadcastLoopAsync(CancellationToken cancellationToken)
         {
-            var destination = new IPEndPoint(IPAddress.Broadcast, this._port);
+            var destination = new IPEndPoint(IPAddress.Broadcast, _port);
 
             try
             {
                 while (!cancellationToken.IsCancellationRequested)
                 {
-                    this._localBeacon.SentUtcTicks = DateTime.UtcNow.Ticks;
-                    var bytes = MessagePackSerializer.Serialize(this._localBeacon);
-                    await this._broadcastClient.SendAsync(bytes, bytes.Length, destination).ConfigureAwait(false);
-                    await Task.Delay(this._broadcastInterval, cancellationToken).ConfigureAwait(false);
+                    _localBeacon.SentUtcTicks = DateTime.UtcNow.Ticks;
+                    var bytes = MessagePackSerializer.Serialize(_localBeacon);
+                    await _broadcastClient.SendAsync(bytes, bytes.Length, destination).ConfigureAwait(false);
+                    await Task.Delay(_broadcastInterval, cancellationToken).ConfigureAwait(false);
                 }
             }
             catch (OperationCanceledException)
@@ -135,7 +135,7 @@ namespace NodeMeshConsole
                 UdpReceiveResult result;
                 try
                 {
-                    result = await this._receiveClient.ReceiveAsync().ConfigureAwait(false);
+                    result = await _receiveClient.ReceiveAsync().ConfigureAwait(false);
                 }
                 catch (ObjectDisposedException)
                 {
@@ -152,7 +152,7 @@ namespace NodeMeshConsole
                 }
 
                 var beacon = MessagePackSerializer.Deserialize<BeaconTransportMessage>(result.Buffer);
-                if (string.Equals(beacon.NodeId, this._localBeacon.NodeId, StringComparison.OrdinalIgnoreCase))
+                if (string.Equals(beacon.NodeId, _localBeacon.NodeId, StringComparison.OrdinalIgnoreCase))
                 {
                     continue;
                 }
@@ -167,7 +167,7 @@ namespace NodeMeshConsole
                     LastSeenUtc = DateTimeOffset.UtcNow
                 };
 
-                this._peers.AddOrUpdate(peer.NodeId, peer, (_, __) => peer);
+                _peers.AddOrUpdate(peer.NodeId, peer, (_, __) => peer);
                 this.PeerUpserted?.Invoke(peer);
             }
         }
@@ -178,10 +178,10 @@ namespace NodeMeshConsole
             {
                 while (!cancellationToken.IsCancellationRequested)
                 {
-                    await Task.Delay(this._broadcastInterval, cancellationToken).ConfigureAwait(false);
-                    var threshold = DateTimeOffset.UtcNow - this._peerTimeout;
+                    await Task.Delay(_broadcastInterval, cancellationToken).ConfigureAwait(false);
+                    var threshold = DateTimeOffset.UtcNow - _peerTimeout;
 
-                    foreach (var pair in this._peers.ToArray())
+                    foreach (var pair in _peers.ToArray())
                     {
                         if (pair.Value.LastSeenUtc >= threshold)
                         {
@@ -189,9 +189,9 @@ namespace NodeMeshConsole
                         }
 
                         PeerNode removedPeer;
-                        if (this._peers.TryRemove(pair.Key, out removedPeer))
+                        if (_peers.TryRemove(pair.Key, out removedPeer))
                         {
-                            this._log(string.Format("[beacon] peer timeout for {0}", removedPeer.NodeId));
+                            _log(string.Format("[beacon] peer timeout for {0}", removedPeer.NodeId));
                             this.PeerExpired?.Invoke(removedPeer);
                         }
                     }
