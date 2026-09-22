@@ -108,12 +108,18 @@ namespace NodeMeshConsole
         {
             var destination = new IPEndPoint(IPAddress.Broadcast, this._port);
 
-            while (!cancellationToken.IsCancellationRequested)
+            try
             {
-                this._localBeacon.SentUtcTicks = DateTime.UtcNow.Ticks;
-                var bytes = MessagePackSerializer.Serialize(this._localBeacon);
-                await this._broadcastClient.SendAsync(bytes, bytes.Length, destination).ConfigureAwait(false);
-                await Task.Delay(this._broadcastInterval, cancellationToken).ConfigureAwait(false);
+                while (!cancellationToken.IsCancellationRequested)
+                {
+                    this._localBeacon.SentUtcTicks = DateTime.UtcNow.Ticks;
+                    var bytes = MessagePackSerializer.Serialize(this._localBeacon);
+                    await this._broadcastClient.SendAsync(bytes, bytes.Length, destination).ConfigureAwait(false);
+                    await Task.Delay(this._broadcastInterval, cancellationToken).ConfigureAwait(false);
+                }
+            }
+            catch (OperationCanceledException)
+            {
             }
         }
 
@@ -146,10 +152,11 @@ namespace NodeMeshConsole
                     continue;
                 }
 
+                var remoteAddress = result.RemoteEndPoint.Address.ToString();
                 var peer = new PeerNode
                 {
                     NodeId = beacon.NodeId,
-                    IpAddress = beacon.IpAddress,
+                    IpAddress = remoteAddress,
                     StreamPort = beacon.StreamPort,
                     ReliablePort = beacon.ReliablePort,
                     LastSeenUtc = DateTimeOffset.UtcNow
@@ -162,25 +169,31 @@ namespace NodeMeshConsole
 
         private async Task PruneLoopAsync(CancellationToken cancellationToken)
         {
-            while (!cancellationToken.IsCancellationRequested)
+            try
             {
-                await Task.Delay(this._broadcastInterval, cancellationToken).ConfigureAwait(false);
-                var threshold = DateTimeOffset.UtcNow - this._peerTimeout;
-
-                foreach (var pair in this._peers.ToArray())
+                while (!cancellationToken.IsCancellationRequested)
                 {
-                    if (pair.Value.LastSeenUtc >= threshold)
-                    {
-                        continue;
-                    }
+                    await Task.Delay(this._broadcastInterval, cancellationToken).ConfigureAwait(false);
+                    var threshold = DateTimeOffset.UtcNow - this._peerTimeout;
 
-                    PeerNode removedPeer;
-                    if (this._peers.TryRemove(pair.Key, out removedPeer))
+                    foreach (var pair in this._peers.ToArray())
                     {
-                        this._log(string.Format("[beacon] peer timeout for {0}", removedPeer.NodeId));
-                        this.PeerExpired?.Invoke(removedPeer);
+                        if (pair.Value.LastSeenUtc >= threshold)
+                        {
+                            continue;
+                        }
+
+                        PeerNode removedPeer;
+                        if (this._peers.TryRemove(pair.Key, out removedPeer))
+                        {
+                            this._log(string.Format("[beacon] peer timeout for {0}", removedPeer.NodeId));
+                            this.PeerExpired?.Invoke(removedPeer);
+                        }
                     }
                 }
+            }
+            catch (OperationCanceledException)
+            {
             }
         }
     }

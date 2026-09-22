@@ -193,13 +193,22 @@ namespace NodeMeshConsole
                         if (envelope.Kind == EnvelopeKind.Ack)
                         {
                             pending.Remove(BuildPendingKey(dealerIdentity, envelope.AcknowledgedMessageId));
+                            message = new NetMQMessage();
                             continue;
                         }
 
-                        args.Socket.SendMoreFrame(message[0].Buffer).SendFrame(EnvelopeCodec.Encode(EnvelopeCodec.CreateAck(this._localNodeId, envelope.MessageId)));
+                        var reply = new NetMQMessage();
+                        for (var index = 0; index < message.FrameCount - 1; index++)
+                        {
+                            reply.Append(message[index].ToByteArray());
+                        }
+
+                        reply.Append(EnvelopeCodec.Encode(EnvelopeCodec.CreateAck(this._localNodeId, envelope.MessageId)));
+                        args.Socket.SendMultipartMessage(reply);
 
                         if (!this._seenMessages.TryAdd(envelope.MessageId, 0))
                         {
+                            message = new NetMQMessage();
                             continue;
                         }
 
