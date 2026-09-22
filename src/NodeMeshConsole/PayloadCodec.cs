@@ -45,7 +45,7 @@ namespace NodeMeshConsole
             var buffer = new byte[length];
             for (var index = 0; index < buffer.Length; index++)
             {
-                buffer[index] = (byte)(index % byte.MaxValue);
+                buffer[index] = (byte)(index % 256);
             }
 
             return new TransportPayload

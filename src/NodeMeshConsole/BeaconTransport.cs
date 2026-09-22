@@ -157,11 +157,11 @@ namespace NodeMeshConsole
                     continue;
                 }
 
-                var remoteAddress = result.RemoteEndPoint.Address.ToString();
+                var peerAddress = SelectPeerAddress(beacon.IpAddress, result.RemoteEndPoint.Address);
                 var peer = new PeerNode
                 {
                     NodeId = beacon.NodeId,
-                    IpAddress = remoteAddress,
+                    IpAddress = peerAddress.ToString(),
                     StreamPort = beacon.StreamPort,
                     ReliablePort = beacon.ReliablePort,
                     LastSeenUtc = DateTimeOffset.UtcNow
@@ -200,6 +200,21 @@ namespace NodeMeshConsole
             catch (OperationCanceledException)
             {
             }
+        }
+
+        private static IPAddress SelectPeerAddress(string advertisedAddress, IPAddress remoteAddress)
+        {
+            IPAddress parsedAdvertisedAddress;
+            if (!string.IsNullOrWhiteSpace(advertisedAddress) &&
+                IPAddress.TryParse(advertisedAddress, out parsedAdvertisedAddress) &&
+                parsedAdvertisedAddress.AddressFamily == AddressFamily.InterNetwork &&
+                !IPAddress.IsLoopback(parsedAdvertisedAddress) &&
+                !IPAddress.Any.Equals(parsedAdvertisedAddress))
+            {
+                return parsedAdvertisedAddress;
+            }
+
+            return remoteAddress;
         }
     }
 }

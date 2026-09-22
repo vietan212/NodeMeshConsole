@@ -131,7 +131,7 @@ namespace NodeMeshConsole
                             }
 
                             var dealer = new DealerSocket();
-                            dealer.Options.Identity = Encoding.UTF8.GetBytes(this._localNodeId);
+                            dealer.Options.Identity = Encoding.UTF8.GetBytes(this._localNodeId + ":" + command.Peer.NodeId + ":" + Guid.NewGuid().ToString("N"));
                             var peerNodeId = command.Peer.NodeId;
                             var endpoint = "tcp://" + command.Peer.IpAddress + ":" + command.Peer.ReliablePort;
                             dealer.Connect(endpoint);
@@ -141,6 +141,11 @@ namespace NodeMeshConsole
                                 {
                                     var ack = EnvelopeCodec.Decode(frame);
                                     if (ack.Kind != EnvelopeKind.Ack || string.IsNullOrWhiteSpace(ack.AcknowledgedMessageId))
+                                    {
+                                        continue;
+                                    }
+
+                                    if (!string.Equals(ack.SenderNode, peerNodeId, StringComparison.OrdinalIgnoreCase))
                                     {
                                         continue;
                                     }

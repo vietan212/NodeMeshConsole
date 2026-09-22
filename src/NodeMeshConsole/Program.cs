@@ -17,11 +17,6 @@ namespace NodeMeshConsole
                 return 1;
             }
 
-            Console.CancelKeyPress += (sender, eventArgs) =>
-            {
-                eventArgs.Cancel = true;
-            };
-
             try
             {
                 using (var nodeTransport = new NodeTransport(nodeIdentity, Log))
