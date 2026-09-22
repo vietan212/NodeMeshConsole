@@ -77,6 +77,20 @@ namespace NodeMeshConsole
 
             this._cancellationTokenSource.Cancel();
 
+            if (this._broadcastClient != null)
+            {
+                this._broadcastClient.Close();
+                this._broadcastClient.Dispose();
+                this._broadcastClient = null;
+            }
+
+            if (this._receiveClient != null)
+            {
+                this._receiveClient.Close();
+                this._receiveClient.Dispose();
+                this._receiveClient = null;
+            }
+
             try
             {
                 Task.WaitAll(new[] { this._broadcastTask, this._receiveTask, this._pruneTask }.Where(task => task != null).ToArray(), TimeSpan.FromSeconds(2));
@@ -86,18 +100,6 @@ namespace NodeMeshConsole
             }
             catch (ObjectDisposedException)
             {
-            }
-
-            if (this._broadcastClient != null)
-            {
-                this._broadcastClient.Close();
-                this._broadcastClient.Dispose();
-            }
-
-            if (this._receiveClient != null)
-            {
-                this._receiveClient.Close();
-                this._receiveClient.Dispose();
             }
 
             this._cancellationTokenSource.Dispose();
@@ -119,6 +121,9 @@ namespace NodeMeshConsole
                 }
             }
             catch (OperationCanceledException)
+            {
+            }
+            catch (ObjectDisposedException)
             {
             }
         }

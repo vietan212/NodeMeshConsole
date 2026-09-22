@@ -105,18 +105,23 @@ namespace NodeMeshConsole
             PeerNode previousPeer;
             this._peers.TryGetValue(peer.NodeId, out previousPeer);
             var current = this._peers.AddOrUpdate(peer.NodeId, peer, (_, __) => peer);
+            var endpointChanged = previousPeer == null ||
+                !string.Equals(previousPeer.IpAddress, current.IpAddress, StringComparison.OrdinalIgnoreCase) ||
+                previousPeer.StreamPort != current.StreamPort ||
+                previousPeer.ReliablePort != current.ReliablePort;
 
-            if (previousPeer != null &&
-                (!string.Equals(previousPeer.IpAddress, current.IpAddress, StringComparison.OrdinalIgnoreCase) ||
-                 previousPeer.StreamPort != current.StreamPort ||
-                 previousPeer.ReliablePort != current.ReliablePort))
+            if (previousPeer != null && endpointChanged)
             {
                 this._streamTransport.DisconnectPeer(previousPeer);
                 this._reliableTransport.DisconnectPeer(previousPeer);
             }
 
-            this._streamTransport.ConnectPeer(current);
-            this._reliableTransport.ConnectPeer(current);
+            if (endpointChanged)
+            {
+                this._streamTransport.ConnectPeer(current);
+                this._reliableTransport.ConnectPeer(current);
+            }
+
             this._log(string.Format("[beacon] peer active: {0}", current));
         }
 

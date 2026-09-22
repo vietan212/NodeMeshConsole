@@ -79,7 +79,7 @@ namespace NodeMeshConsole
         private void RunWorker()
         {
             var pendingByToken = new Dictionary<string, TransportEnvelope>(StringComparer.OrdinalIgnoreCase);
-            var connectedPeers = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var connectedEndpointsByPeer = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
             using (var publisher = new PublisherSocket())
             using (var subscriber = new SubscriberSocket())
@@ -116,18 +116,29 @@ namespace NodeMeshConsole
                         var endpoint = "tcp://" + command.Peer.IpAddress + ":" + command.Peer.StreamPort;
                         if (command.Kind == StreamCommandKind.Connect)
                         {
-                            if (connectedPeers.Add(command.Peer.NodeId))
+                            string currentEndpoint;
+                            if (connectedEndpointsByPeer.TryGetValue(command.Peer.NodeId, out currentEndpoint))
                             {
-                                subscriber.Connect(endpoint);
-                                this._log(string.Format("[stream] connected SUB to {0}", endpoint));
+                                if (string.Equals(currentEndpoint, endpoint, StringComparison.OrdinalIgnoreCase))
+                                {
+                                    continue;
+                                }
+
+                                subscriber.Disconnect(currentEndpoint);
                             }
+
+                            subscriber.Connect(endpoint);
+                            connectedEndpointsByPeer[command.Peer.NodeId] = endpoint;
+                            this._log(string.Format("[stream] connected SUB to {0}", endpoint));
                         }
                         else if (command.Kind == StreamCommandKind.Disconnect)
                         {
-                            if (connectedPeers.Remove(command.Peer.NodeId))
+                            string currentEndpoint;
+                            if (connectedEndpointsByPeer.TryGetValue(command.Peer.NodeId, out currentEndpoint))
                             {
-                                subscriber.Disconnect(endpoint);
-                                this._log(string.Format("[stream] disconnected SUB from {0}", endpoint));
+                                subscriber.Disconnect(currentEndpoint);
+                                connectedEndpointsByPeer.Remove(command.Peer.NodeId);
+                                this._log(string.Format("[stream] disconnected SUB from {0}", currentEndpoint));
                             }
                         }
                     }
