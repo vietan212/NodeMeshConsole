@@ -27,8 +27,7 @@ namespace NodeMeshConsole
                 Token = token,
                 Kind = EnvelopeKind.Data,
                 PayloadBytes = payloadBytes,
-                CreatedUtcTicks = DateTime.UtcNow.Ticks
-                ,
+                CreatedUtcTicks = DateTime.UtcNow.Ticks,
                 IsPayloadCompressed = isPayloadCompressed
             };
         }
